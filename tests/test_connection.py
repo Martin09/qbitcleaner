@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from qbittorrentapi import APIConnectionError, LoginFailed
 
 from qbitcleaner import QBittorrentCleaner
@@ -17,10 +16,10 @@ class TestConnection:
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         cleaner = QBittorrentCleaner(config_file)
         result = cleaner._connect()
-        
+
         assert result is True
         assert cleaner.client == mock_client
         mock_client.auth_log_in.assert_called_once()
@@ -31,16 +30,17 @@ class TestConnection:
         sample_config["qbittorrent"]["url"] = "https://localhost:8080"
         config_path = tmp_path / "https_config.yaml"
         import yaml
+
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(sample_config, f)
-        
+
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         cleaner = QBittorrentCleaner(str(config_path))
         result = cleaner._connect()
-        
+
         assert result is True
         # Verify HTTPS URL was used
         call_args = mock_client_class.call_args
@@ -53,16 +53,17 @@ class TestConnection:
         sample_config["qbittorrent"]["verify_ssl"] = False
         config_path = tmp_path / "no_verify_config.yaml"
         import yaml
+
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(sample_config, f)
-        
+
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         cleaner = QBittorrentCleaner(str(config_path))
         result = cleaner._connect()
-        
+
         assert result is True
         # Verify VERIFY_WEBUI_CERTIFICATE was set to False
         call_args = mock_client_class.call_args
@@ -74,16 +75,17 @@ class TestConnection:
         sample_config["qbittorrent"]["url"] = "https://ds218.local:8080/qbittorrent"
         config_path = tmp_path / "path_url_config.yaml"
         import yaml
+
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(sample_config, f)
-        
+
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         cleaner = QBittorrentCleaner(str(config_path))
         result = cleaner._connect()
-        
+
         assert result is True
         # Verify URL is used directly
         call_args = mock_client_class.call_args
@@ -99,16 +101,17 @@ class TestConnection:
             del sample_config["qbittorrent"]["verify_ssl"]
         config_path = tmp_path / "auto_ssl_config.yaml"
         import yaml
+
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(sample_config, f)
-        
+
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         cleaner = QBittorrentCleaner(str(config_path))
         result = cleaner._connect()
-        
+
         assert result is True
         # Verify SSL verification is enabled (default for https)
         call_args = mock_client_class.call_args
@@ -120,10 +123,10 @@ class TestConnection:
         mock_client = MagicMock()
         mock_client.auth_log_in.side_effect = LoginFailed()
         mock_client_class.return_value = mock_client
-        
+
         cleaner = QBittorrentCleaner(config_file)
         result = cleaner._connect()
-        
+
         assert result is False
         assert cleaner.client == mock_client
 
@@ -131,45 +134,45 @@ class TestConnection:
     def test_connection_error(self, mock_client_class, config_file):
         """Test handling of connection error."""
         mock_client_class.side_effect = APIConnectionError("Connection failed")
-        
+
         cleaner = QBittorrentCleaner(config_file)
         result = cleaner._connect()
-        
+
         assert result is False
 
     @patch("qbitcleaner.Client")
     def test_unexpected_error(self, mock_client_class, config_file):
         """Test handling of unexpected connection error."""
         mock_client_class.side_effect = Exception("Unexpected error")
-        
+
         cleaner = QBittorrentCleaner(config_file)
         result = cleaner._connect()
-        
+
         assert result is False
 
     def test_disconnect(self, config_file, mock_client):
         """Test disconnecting from qBittorrent."""
         cleaner = QBittorrentCleaner(config_file)
         cleaner.client = mock_client
-        
+
         cleaner.disconnect()
-        
+
         mock_client.auth_log_out.assert_called_once()
 
     def test_disconnect_no_client(self, config_file):
         """Test disconnect when no client is connected."""
         cleaner = QBittorrentCleaner(config_file)
         cleaner.client = None
-        
+
         # Should not raise an error
         cleaner.disconnect()
 
     def test_disconnect_error(self, config_file, mock_client):
         """Test disconnect handles errors gracefully."""
         mock_client.auth_log_out.side_effect = Exception("Disconnect error")
-        
+
         cleaner = QBittorrentCleaner(config_file)
         cleaner.client = mock_client
-        
+
         # Should not raise, just log warning
         cleaner.disconnect()

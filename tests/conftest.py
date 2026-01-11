@@ -1,8 +1,6 @@
 """Pytest configuration and shared fixtures."""
 
-import tempfile
 from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,10 +19,7 @@ def sample_config():
         },
         "cleanup": {
             "minimum_seeding_torrents": 15,
-            "minimum_seeding_time_days": 15,
-            "max_seeding_time_days": 100,
-            "performance_metric": "uploaded_gb",
-            "performance_threshold": 10.0,
+            "minimum_seeding_time_days": 14,
         },
         "logging": {
             "level": "INFO",
@@ -45,6 +40,7 @@ def config_file(tmp_path, sample_config):
 @pytest.fixture
 def mock_torrent():
     """Create a mock torrent object."""
+
     def _create_torrent(
         name="Test Torrent",
         hash_value="abc123",
@@ -55,6 +51,7 @@ def mock_torrent():
         uploaded=0,
         downloaded=0,
         num_seeds=10,
+        popularity=0.0,
     ):
         torrent = MagicMock()
         torrent.name = name
@@ -65,6 +62,7 @@ def mock_torrent():
         torrent.uploaded = uploaded
         torrent.downloaded = downloaded
         torrent.num_seeds = num_seeds
+        torrent.popularity = popularity
         return torrent
 
     return _create_torrent

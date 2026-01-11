@@ -1,8 +1,5 @@
 """Tests for configuration loading."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 import yaml
 
@@ -26,7 +23,7 @@ class TestConfigLoading:
         """Test loading an invalid YAML file raises YAMLError."""
         invalid_config = tmp_path / "invalid_config.yaml"
         invalid_config.write_text("invalid: yaml: content: [")
-        
+
         with pytest.raises(yaml.YAMLError):
             QBittorrentCleaner(str(invalid_config))
 
@@ -40,7 +37,7 @@ class TestConfigLoading:
         config_path = tmp_path / "minimal_config.yaml"
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(minimal_config, f)
-        
+
         cleaner = QBittorrentCleaner(str(config_path))
         # Should not raise and should have defaults
         assert cleaner.config is not None
