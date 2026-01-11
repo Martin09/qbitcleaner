@@ -1,23 +1,24 @@
 """
 qBittorrent Cleaner - Automatically clean up seeding torrents based on configurable criteria.
 
-This script connects to a qBittorrent instance and removes torrents from seeding
-based on criteria such as minimum seeders, seeding time, and performance metrics.
+This script connects to a qBittorrent instance and removes torrents based on:
+- Age: Protects torrents younger than minimum seeding days
+- Popularity: Removes least popular torrents first
+- Minimum count: Always maintains a minimum number of seeding torrents
 """
 
 import argparse
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import urllib3
 import yaml
 from qbittorrentapi import Client, LoginFailed, APIConnectionError
 
-# Disable SSL warnings if verification is disabled
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Disable SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -276,7 +277,7 @@ class QBittorrentCleaner:
             f"while maintaining minimum of {min_seeding_torrents} seeding torrents"
         )
 
-        # Remove the lowest performers (up to the limit)
+        # Remove the least popular torrents (up to the limit)
         for torrent, reason in removable_torrents[:actual_removals]:
             seeding_days = self._calculate_seeding_time_days(torrent)
             uploaded_gb = self._get_uploaded_gb(torrent)
