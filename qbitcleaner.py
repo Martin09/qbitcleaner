@@ -12,11 +12,10 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import urllib3
 import yaml
-from qbittorrentapi import Client, LoginFailed, APIConnectionError
+from qbittorrentapi import APIConnectionError, Client, LoginFailed
 
 # Disable SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -36,7 +35,7 @@ class QBittorrentCleaner:
         self._setup_logging()
         self.client = None
 
-    def _load_config(self, config_path: str) -> Dict:
+    def _load_config(self, config_path: str) -> dict:
         """
         Load configuration from YAML file.
 
@@ -54,7 +53,7 @@ class QBittorrentCleaner:
         if not config_file.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-        with open(config_file, "r", encoding="utf-8") as f:
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         return config
@@ -87,7 +86,7 @@ class QBittorrentCleaner:
         url = qb_config.get("url", "http://localhost:8080")
         username = qb_config.get("username", "")
         password = qb_config.get("password", "")
-        
+
         # Automatically detect SSL from URL
         verify_ssl = qb_config.get("verify_ssl", "https" in url.lower())
 
@@ -101,7 +100,7 @@ class QBittorrentCleaner:
                 username=username,
                 password=password,
                 VERIFY_WEBUI_CERTIFICATE=verify_ssl,
-                FORCE_SCHEME_FROM_HOST=True
+                FORCE_SCHEME_FROM_HOST=True,
             )
             self.client.auth_log_in()
             self.logger.info(f"Successfully connected to qBittorrent at {url}")
@@ -116,7 +115,7 @@ class QBittorrentCleaner:
             self.logger.error(f"Unexpected error connecting to qBittorrent: {e}")
             return False
 
-    def _get_completed_torrents(self) -> List:
+    def _get_completed_torrents(self) -> list:
         """
         Get list of completed torrents that are currently seeding.
 
@@ -168,7 +167,7 @@ class QBittorrentCleaner:
         Returns:
             Uploaded amount in GB.
         """
-        return torrent.uploaded / (1024 ** 3)
+        return torrent.uploaded / (1024**3)
 
     def _get_popularity(self, torrent) -> float:
         """
@@ -184,11 +183,11 @@ class QBittorrentCleaner:
             Popularity value (higher = more popular).
         """
         try:
-            return float(getattr(torrent, 'popularity', 0.0) or 0.0)
+            return float(getattr(torrent, "popularity", 0.0) or 0.0)
         except (TypeError, ValueError):
             return 0.0
 
-    def _categorize_torrent(self, torrent) -> Tuple[str, str]:
+    def _categorize_torrent(self, torrent) -> tuple[str, str]:
         """
         Categorize a torrent into protected or removable.
 
@@ -213,7 +212,7 @@ class QBittorrentCleaner:
         # Rule 2: Removable - ordered by popularity (lowest first)
         return "removable", "Eligible for removal"
 
-    def cleanup(self, dry_run: bool = False) -> Dict[str, int]:
+    def cleanup(self, dry_run: bool = False) -> dict[str, int]:
         """
         Perform cleanup of seeding torrents.
 
@@ -247,10 +246,7 @@ class QBittorrentCleaner:
         for torrent in torrents:
             category, reason = self._categorize_torrent(torrent)
             popularity = self._get_popularity(torrent)
-            self.logger.debug(
-                f"Torrent: {torrent.name[:50]}... | "
-                f"Popularity: {popularity:.2f} | Category: {category}"
-            )
+            self.logger.debug(f"Torrent: {torrent.name[:50]}... | Popularity: {popularity:.2f} | Category: {category}")
             if category == "young":
                 young_torrents.append((torrent, reason))
             else:
@@ -267,7 +263,7 @@ class QBittorrentCleaner:
 
         # Calculate how many we can remove while maintaining minimum
         current_count = len(torrents)
-        
+
         # We need at least min_seeding_torrents total, including protected ones
         max_removals = max(0, current_count - min_seeding_torrents)
         actual_removals = min(len(removable_torrents), max_removals)
@@ -278,7 +274,7 @@ class QBittorrentCleaner:
         )
 
         # Remove the least popular torrents (up to the limit)
-        for torrent, reason in removable_torrents[:actual_removals]:
+        for torrent, _reason in removable_torrents[:actual_removals]:
             seeding_days = self._calculate_seeding_time_days(torrent)
             uploaded_gb = self._get_uploaded_gb(torrent)
             popularity = self._get_popularity(torrent)
@@ -292,9 +288,7 @@ class QBittorrentCleaner:
 
             if not dry_run:
                 try:
-                    self.client.torrents_delete(
-                        delete_files=False, torrent_hashes=torrent.hash
-                    )
+                    self.client.torrents_delete(delete_files=False, torrent_hashes=torrent.hash)
                     stats["removed"] += 1
                 except Exception as e:
                     self.logger.error(f"Error removing torrent {torrent.name}: {e}")
@@ -307,7 +301,7 @@ class QBittorrentCleaner:
             self.logger.debug(f"Keeping (young): {torrent.name} - {reason}")
 
         # Log torrents that couldn't be removed due to minimum threshold
-        for torrent, reason in removable_torrents[actual_removals:]:
+        for torrent, _reason in removable_torrents[actual_removals:]:
             popularity = self._get_popularity(torrent)
             self.logger.info(
                 f"Keeping (minimum threshold): {torrent.name} "
@@ -338,9 +332,7 @@ class QBittorrentCleaner:
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(
-        description="Clean up qBittorrent seeding list based on configurable criteria"
-    )
+    parser = argparse.ArgumentParser(description="Clean up qBittorrent seeding list based on configurable criteria")
     parser.add_argument(
         "-c",
         "--config",
