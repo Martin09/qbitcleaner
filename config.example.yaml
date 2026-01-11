@@ -1,0 +1,25 @@
+# qBittorrent Cleaner Configuration
+
+# qBittorrent connection settings
+qbittorrent:
+  # Full URL including protocol, hostname, port, and optional path
+  url: "https://your-qbittorrent-host:8080"
+  username: "your-username"
+  password: "your-password"
+  # Set to false to disable SSL certificate verification (for self-signed certificates)
+  # If not specified, defaults to True for https URLs, False for http URLs
+  verify_ssl: false
+
+# Cleanup criteria
+cleanup:
+  # Minimum number of torrents that must remain seeding (for private tracker requirements)
+  minimum_seeding_torrents: 15
+  
+  # Minimum seeding time in days before a torrent can be considered for removal
+  # Torrents younger than this are protected from removal
+  minimum_seeding_time_days: 14
+
+# Logging settings
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "qbitcleaner.log"  # Set to null to disable file logging
