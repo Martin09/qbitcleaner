@@ -1,0 +1,27 @@
+[project]
+name = "qbitcleaner"
+version = "1.0.0"
+description = "Automatically clean up qBittorrent seeding list based on configurable criteria"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "qbittorrent-api>=2024.3.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+]
+
+[project.scripts]
+qbitcleaner = "qbitcleaner:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=qbitcleaner --cov-report=term-missing --cov-report=html"
