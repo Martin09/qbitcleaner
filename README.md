@@ -77,13 +77,26 @@ The script:
 - Least popular torrents are removed first
 - Removal stops when `minimum_seeding_torrents` threshold is reached
 
-## Testing
+## Development
 
-Run the test suite with:
+### Setup
 
 ```bash
-uv sync --dev
+uv sync --extra dev
+uv run pre-commit install
+```
+
+### Run tests
+
+```bash
 uv run pytest
+```
+
+### Run linting
+
+```bash
+uv run ruff check --fix .
+uv run ruff format .
 ```
 
 ## Notes
@@ -92,4 +105,3 @@ uv run pytest
 - Make sure qBittorrent Web UI is enabled and accessible
 - **Always test with `--dry-run` first** to see what would be removed
 - Keep `config.yaml` private - it contains your credentials
-
