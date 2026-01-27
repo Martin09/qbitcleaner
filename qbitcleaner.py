@@ -187,13 +187,32 @@ class QBittorrentCleaner:
         except (TypeError, ValueError):
             return 0.0
 
+    def _is_private_torrent(self, torrent) -> bool:
+        """
+        Check if a torrent is from a private tracker.
+
+        Args:
+            torrent: Torrent object from qBittorrent API.
+
+        Returns:
+            True if the torrent is private, False otherwise.
+        """
+        try:
+            properties = self.client.torrents_properties(torrent_hash=torrent.hash)
+            return bool(properties.get("is_private", False))
+        except Exception as e:
+            self.logger.warning(f"Could not determine private status for {torrent.name}: {e}")
+            # Default to treating as private (safer - preserves ratio)
+            return True
+
     def _categorize_torrent(self, torrent) -> tuple[str, str]:
         """
         Categorize a torrent into protected or removable.
 
         Categories:
-        - "young": Torrent is under 14 days old (protected)
-        - "removable": Torrent can be removed (ordered by popularity, lowest first)
+        - "public": Non-private torrent (always removable, no filters applied)
+        - "young": Private torrent under minimum seeding days (protected)
+        - "removable": Private torrent that can be removed (ordered by popularity, lowest first)
 
         Args:
             torrent: Torrent object from qBittorrent API.
@@ -201,15 +220,19 @@ class QBittorrentCleaner:
         Returns:
             Tuple of (category: str, reason: str).
         """
+        # Rule 1: Remove all public (non-private) torrents
+        if not self._is_private_torrent(torrent):
+            return "public", "Public torrent (non-private tracker)"
+
         cleanup_config = self.config.get("cleanup", {})
         seeding_days = self._calculate_seeding_time_days(torrent)
         min_seeding_days = cleanup_config.get("minimum_seeding_time_days", 14)
 
-        # Rule 1: Protect young torrents (< minimum seeding days)
+        # Rule 2: Protect young private torrents (< minimum seeding days)
         if seeding_days < min_seeding_days:
             return "young", f"Young torrent ({seeding_days:.1f} days < {min_seeding_days} days)"
 
-        # Rule 2: Removable - ordered by popularity (lowest first)
+        # Rule 3: Removable private torrent - ordered by popularity (lowest first)
         return "removable", "Eligible for removal"
 
     def cleanup(self, dry_run: bool = False) -> dict[str, int]:
@@ -240,6 +263,7 @@ class QBittorrentCleaner:
         self.logger.info(f"Total seeding torrents: {len(torrents)}, Minimum to keep: {min_seeding_torrents}")
 
         # Categorize all torrents
+        public_torrents = []
         young_torrents = []
         removable_torrents = []
 
@@ -247,33 +271,56 @@ class QBittorrentCleaner:
             category, reason = self._categorize_torrent(torrent)
             popularity = self._get_popularity(torrent)
             self.logger.debug(f"Torrent: {torrent.name[:50]}... | Popularity: {popularity:.2f} | Category: {category}")
-            if category == "young":
+            if category == "public":
+                public_torrents.append((torrent, reason))
+            elif category == "young":
                 young_torrents.append((torrent, reason))
             else:
                 removable_torrents.append((torrent, reason))
 
-        # Sort removable torrents by popularity (lowest first = remove first)
+        # Sort removable private torrents by popularity (lowest first = remove first)
         removable_torrents.sort(key=lambda x: self._get_popularity(x[0]))
 
         # Log category counts
         self.logger.info(
-            f"Categorized torrents: {len(young_torrents)} young (protected), "
-            f"{len(removable_torrents)} eligible for removal"
+            f"Categorized torrents: {len(public_torrents)} public (always remove), "
+            f"{len(young_torrents)} young private (protected), "
+            f"{len(removable_torrents)} private eligible for removal"
         )
 
-        # Calculate how many we can remove while maintaining minimum
-        current_count = len(torrents)
+        # First, remove ALL public torrents (no minimum count protection)
+        for torrent, _reason in public_torrents:
+            seeding_days = self._calculate_seeding_time_days(torrent)
+            uploaded_gb = self._get_uploaded_gb(torrent)
 
-        # We need at least min_seeding_torrents total, including protected ones
-        max_removals = max(0, current_count - min_seeding_torrents)
+            self.logger.info(
+                f"Removing (public): {torrent.name} (Seeding: {seeding_days:.1f} days, Uploaded: {uploaded_gb:.2f} GB)"
+            )
+
+            if not dry_run:
+                try:
+                    self.client.torrents_delete(delete_files=False, torrent_hashes=torrent.hash)
+                    stats["removed"] += 1
+                except Exception as e:
+                    self.logger.error(f"Error removing torrent {torrent.name}: {e}")
+                    stats["errors"] += 1
+            else:
+                stats["removed"] += 1
+
+        # Calculate how many private torrents we can remove while maintaining minimum
+        # Only private torrents count toward the minimum
+        private_count = len(young_torrents) + len(removable_torrents)
+
+        # We need at least min_seeding_torrents private torrents
+        max_removals = max(0, private_count - min_seeding_torrents)
         actual_removals = min(len(removable_torrents), max_removals)
 
         self.logger.info(
-            f"Can remove {actual_removals} of {len(removable_torrents)} eligible torrents "
-            f"while maintaining minimum of {min_seeding_torrents} seeding torrents"
+            f"Can remove {actual_removals} of {len(removable_torrents)} eligible private torrents "
+            f"while maintaining minimum of {min_seeding_torrents} private seeding torrents"
         )
 
-        # Remove the least popular torrents (up to the limit)
+        # Remove the least popular private torrents (up to the limit)
         for torrent, _reason in removable_torrents[:actual_removals]:
             seeding_days = self._calculate_seeding_time_days(torrent)
             uploaded_gb = self._get_uploaded_gb(torrent)
@@ -311,11 +358,10 @@ class QBittorrentCleaner:
 
         stats["kept"] += len(young_torrents)
 
-        final_count = stats["total_checked"] - stats["removed"]
         self.logger.info(
             f"Cleanup complete. Checked: {stats['total_checked']}, "
-            f"Removed: {stats['removed']}, Kept: {stats['kept']}, "
-            f"Final seeding count: {final_count}, Errors: {stats['errors']}"
+            f"Removed: {stats['removed']} (including {len(public_torrents)} public), "
+            f"Kept: {stats['kept']} (private only), Errors: {stats['errors']}"
         )
 
         return stats

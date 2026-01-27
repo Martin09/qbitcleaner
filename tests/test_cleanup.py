@@ -13,6 +13,7 @@ class TestGetCompletedTorrents:
         """Test getting list of completed seeding torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
 
         # Create mock torrents - status_filter="seeding" already filters, so all returned are seeding
         seeding_torrent1 = mock_torrent(name="Seeding Torrent 1", state="uploading")
@@ -68,6 +69,7 @@ class TestCleanup:
         """Test cleanup in dry-run mode."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
 
         # Create 20 torrents, 10 below threshold
         torrents = []
@@ -98,6 +100,7 @@ class TestCleanup:
         """Test cleanup with actual removal."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
 
         # Create 20 torrents, 10 below threshold
         torrents = []
@@ -125,6 +128,7 @@ class TestCleanup:
         """Test that cleanup maintains minimum seeding torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
 
         # Create exactly 15 torrents, all below threshold
         torrents = []
@@ -157,6 +161,7 @@ class TestCleanup:
         """Test that torrents exceeding max time are removed first."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
 
         # Create 20 torrents: 5 exceed max time, 5 below threshold, 10 good
         torrents = []
@@ -211,6 +216,7 @@ class TestCleanup:
         """Test cleanup handles removal errors gracefully."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
         mock_client.torrents_delete.side_effect = Exception("Delete failed")
 
         # Create 20 torrents, 10 below threshold
@@ -238,6 +244,7 @@ class TestCleanup:
         """Test cleanup with no torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
         mock_client.torrents_info.return_value = []
         mock_client_class.return_value = mock_client
 
@@ -253,6 +260,7 @@ class TestCleanup:
         """Test cleanup when all torrents are below minimum seeding time."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": True})
 
         # Create 20 torrents, all seeded for only 10 days (below 15 day minimum)
         torrents = []
@@ -273,3 +281,142 @@ class TestCleanup:
         assert stats["removed"] == 0
         assert stats["kept"] == 20
         mock_client.torrents_delete.assert_not_called()
+
+    @patch("qbitcleaner.Client")
+    def test_cleanup_removes_all_public_torrents(
+        self, mock_client_class, config_file, mock_torrent, timestamp_10_days_ago
+    ):
+        """Test that all public (non-private) torrents are always removed regardless of age."""
+        mock_client = MagicMock()
+        mock_client.auth_log_in = MagicMock()
+        # All torrents are public (not private)
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": False})
+
+        # Create 20 public torrents, all young (below minimum seeding time)
+        # If they were private, they would be protected
+        torrents = []
+        for i in range(20):
+            torrents.append(
+                mock_torrent(
+                    name=f"Public Torrent {i}",
+                    hash=f"public{i}",
+                    completion_on=timestamp_10_days_ago,
+                    uploaded=5 * (1024**3),
+                    is_private=False,
+                )
+            )
+
+        mock_client.torrents_info.return_value = torrents
+        mock_client_class.return_value = mock_client
+
+        cleaner = QBittorrentCleaner(config_file)
+        stats = cleaner.cleanup(dry_run=False)
+
+        # All public torrents should be removed regardless of age or minimum count
+        assert stats["removed"] == 20
+        assert stats["kept"] == 0
+        assert mock_client.torrents_delete.call_count == 20
+
+    @patch("qbitcleaner.Client")
+    def test_cleanup_mixed_public_private_torrents(
+        self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago, timestamp_10_days_ago
+    ):
+        """Test cleanup with mixed public and private torrents."""
+        mock_client = MagicMock()
+        mock_client.auth_log_in = MagicMock()
+
+        # Create torrents: 5 public, 10 young private (protected), 10 old private (removable)
+        torrents = []
+
+        # 5 public torrents (should all be removed)
+        for i in range(5):
+            torrents.append(
+                mock_torrent(
+                    name=f"Public {i}",
+                    hash=f"public{i}",
+                    completion_on=timestamp_20_days_ago,
+                    uploaded=5 * (1024**3),
+                    is_private=False,
+                )
+            )
+
+        # 10 young private torrents (protected by age)
+        for i in range(10):
+            torrents.append(
+                mock_torrent(
+                    name=f"Young Private {i}",
+                    hash=f"youngpriv{i}",
+                    completion_on=timestamp_10_days_ago,
+                    uploaded=5 * (1024**3),
+                    is_private=True,
+                )
+            )
+
+        # 10 old private torrents (eligible for removal, but protected by minimum)
+        for i in range(10):
+            torrents.append(
+                mock_torrent(
+                    name=f"Old Private {i}",
+                    hash=f"oldpriv{i}",
+                    completion_on=timestamp_20_days_ago,
+                    uploaded=5 * (1024**3),
+                    is_private=True,
+                )
+            )
+
+        # Mock torrents_properties to return different values based on hash
+        def mock_properties(torrent_hash):
+            if torrent_hash.startswith("public"):
+                return {"is_private": False}
+            return {"is_private": True}
+
+        mock_client.torrents_properties = MagicMock(side_effect=mock_properties)
+        mock_client.torrents_info.return_value = torrents
+        mock_client_class.return_value = mock_client
+
+        cleaner = QBittorrentCleaner(config_file)
+        stats = cleaner.cleanup(dry_run=False)
+
+        # 5 public torrents removed + 5 old private torrents removed (20 private - 15 minimum = 5)
+        # Total private torrents = 20, minimum = 15, so can remove 5 old private
+        assert stats["removed"] == 10  # 5 public + 5 old private
+        assert stats["kept"] == 15  # 10 young private + 5 old private kept due to minimum
+        # Check delete was called for public torrents
+        delete_calls = [call[1]["torrent_hashes"] for call in mock_client.torrents_delete.call_args_list]
+        public_deleted = sum(1 for h in delete_calls if h.startswith("public"))
+        assert public_deleted == 5
+
+    @patch("qbitcleaner.Client")
+    def test_cleanup_public_torrents_ignore_minimum_count(
+        self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago
+    ):
+        """Test that public torrents are removed even when below minimum seeding count."""
+        mock_client = MagicMock()
+        mock_client.auth_log_in = MagicMock()
+        # All torrents are public
+        mock_client.torrents_properties = MagicMock(return_value={"is_private": False})
+
+        # Create only 10 public torrents (below 15 minimum)
+        # If they were private, they would all be protected
+        torrents = []
+        for i in range(10):
+            torrents.append(
+                mock_torrent(
+                    name=f"Public {i}",
+                    hash=f"public{i}",
+                    completion_on=timestamp_20_days_ago,
+                    uploaded=5 * (1024**3),
+                    is_private=False,
+                )
+            )
+
+        mock_client.torrents_info.return_value = torrents
+        mock_client_class.return_value = mock_client
+
+        cleaner = QBittorrentCleaner(config_file)
+        stats = cleaner.cleanup(dry_run=False)
+
+        # All 10 public torrents should be removed (minimum count only applies to private)
+        assert stats["removed"] == 10
+        assert stats["kept"] == 0
+        assert mock_client.torrents_delete.call_count == 10

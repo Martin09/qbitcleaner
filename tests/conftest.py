@@ -52,6 +52,7 @@ def mock_torrent():
         downloaded=0,
         num_seeds=10,
         popularity=0.0,
+        is_private=True,
     ):
         torrent = MagicMock()
         torrent.name = name
@@ -63,6 +64,7 @@ def mock_torrent():
         torrent.downloaded = downloaded
         torrent.num_seeds = num_seeds
         torrent.popularity = popularity
+        torrent.is_private = is_private
         return torrent
 
     return _create_torrent
@@ -76,6 +78,7 @@ def mock_client():
     client.auth_log_out = MagicMock()
     client.torrents_info = MagicMock(return_value=[])
     client.torrents_delete = MagicMock()
+    client.torrents_properties = MagicMock(return_value={"is_private": True})
     return client
 
 
