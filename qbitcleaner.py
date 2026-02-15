@@ -11,11 +11,13 @@ import argparse
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
 import urllib3
 import yaml
+from cron_converter import Cron
 from qbittorrentapi import APIConnectionError, Client, LoginFailed
 
 # Disable SSL warnings for self-signed certificates
@@ -396,35 +398,49 @@ def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(description="Clean up qBittorrent seeding list based on configurable criteria")
     parser.add_argument(
-        "-c",
-        "--config",
-        default="config.yaml",
-        help="Path to configuration file (default: config.yaml)",
+        "-c", "--config", default="config.yaml", help="Path to configuration file (default: config.yaml)"
     )
     parser.add_argument(
-        "-d",
-        "--dry-run",
-        action="store_true",
-        help="Perform a dry run without actually removing torrents",
+        "-d", "--dry-run", action="store_true", help="Perform a dry run without actually removing torrents"
     )
-
+    parser.add_argument(
+        "--schedule",
+        default=os.environ.get("SCHEDULE", ""),
+        help="Cron expression for scheduling, e.g. '0 */6 * * *' (default: run once)",
+    )
     args = parser.parse_args()
 
-    try:
-        cleaner = QBittorrentCleaner(args.config)
-        stats = cleaner.cleanup(dry_run=args.dry_run)
-        cleaner.disconnect()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-        if "error" in stats:
-            sys.exit(1)
+    cron_expr = args.schedule.strip()
+    if cron_expr:
+        cron = Cron(cron_expr)
+        logging.info(f"Scheduled mode: '{cron_expr}'")
+        schedule = cron.schedule(datetime.now())
 
-        sys.exit(0)
-    except FileNotFoundError as e:
-        logging.error(f"Configuration error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}", exc_info=True)
-        sys.exit(1)
+    while True:
+        try:
+            cleaner = QBittorrentCleaner(args.config)
+            stats = cleaner.cleanup(dry_run=args.dry_run)
+            cleaner.disconnect()
+            if not cron_expr and "error" in stats:
+                sys.exit(1)
+        except FileNotFoundError as e:
+            logging.error(f"Configuration error: {e}")
+            if not cron_expr:
+                sys.exit(1)
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}", exc_info=True)
+            if not cron_expr:
+                sys.exit(1)
+
+        if not cron_expr:
+            break
+
+        next_run = schedule.next()
+        sleep_for = max(0, (next_run - datetime.now()).total_seconds())
+        logging.info(f"Next run at {next_run.isoformat()}. Sleeping for {sleep_for:.0f}s...")
+        time.sleep(sleep_for)
 
 
 if __name__ == "__main__":

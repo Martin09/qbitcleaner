@@ -13,6 +13,7 @@ def _clean_env(monkeypatch):
     monkeypatch.delenv("QBIT_URL", raising=False)
     monkeypatch.delenv("QBIT_USERNAME", raising=False)
     monkeypatch.delenv("QBIT_PASSWORD", raising=False)
+    monkeypatch.delenv("SCHEDULE", raising=False)
 
 
 @pytest.fixture

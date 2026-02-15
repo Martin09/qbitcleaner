@@ -57,6 +57,46 @@ uv run qbitcleaner.py --dry-run
 uv run qbitcleaner.py --config my_config.yaml
 ```
 
+### Scheduled Execution
+
+Run the script on a cron schedule:
+
+```bash
+uv run qbitcleaner.py --schedule "0 */6 * * *"  # every 6 hours
+uv run qbitcleaner.py --schedule "0 0 * * *"    # daily at midnight
+uv run qbitcleaner.py --schedule "0 0 * * 0"    # weekly on Sunday
+uv run qbitcleaner.py --schedule "0 3 * * *"    # daily at 3 AM
+```
+
+Or set the `SCHEDULE` environment variable:
+
+```bash
+export SCHEDULE="0 0 * * *"
+uv run qbitcleaner.py
+```
+
+## Docker Support
+
+The easiest way to run the cleaner on a schedule is using Docker Compose.
+
+Create a `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+services:
+  qbitcleaner:
+    # Build from local source or use ghcr.io image
+    build: .
+    # image: ghcr.io/martin09/qbitcleaner:latest
+    container_name: qbitcleaner
+    restart: unless-stopped
+    environment:
+      - QBIT_URL=http://qbittorrent:8080
+      - QBIT_USERNAME=admin
+      - QBIT_PASSWORD=adminadmin
+      - SCHEDULE=0 0 * * *  # daily at midnight
+```
+
 ## How It Works
 
 The script:
