@@ -13,6 +13,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---- Final stage ----
 FROM python:3.12-alpine
 
+# Metadata for GitHub Packages
+LABEL org.opencontainers.image.source="https://github.com/martin09/qbitcleaner"
+LABEL org.opencontainers.image.description="Automatically clean up qBittorrent seeding list"
+LABEL org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
 # Copy only the virtual environment from builder
