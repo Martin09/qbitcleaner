@@ -2,7 +2,8 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
@@ -38,7 +39,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
             type=raw,value=latest
-            type=sha
+            type=ref,event=tag
           labels: |
             org.opencontainers.image.description=Automatically clean up qBittorrent seeding list
           annotations: |
