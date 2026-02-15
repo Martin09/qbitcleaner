@@ -39,6 +39,9 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha
+          annotations: |
+            org.opencontainers.image.description=Automatically clean up qBittorrent seeding list
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -48,6 +51,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
