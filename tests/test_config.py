@@ -48,3 +48,13 @@ class TestConfigLoading:
         cleaner = QBittorrentCleaner(config_file)
         assert cleaner.logger is not None
         assert cleaner.logger.name == "qbitcleaner"
+
+    def test_env_var_overrides(self, config_file, monkeypatch):
+        """Test that environment variables override config file values."""
+        monkeypatch.setenv("QBIT_URL", "http://env-host:9090")
+        monkeypatch.setenv("QBIT_USERNAME", "env_user")
+        monkeypatch.setenv("QBIT_PASSWORD", "env_pass")
+        cleaner = QBittorrentCleaner(config_file)
+        assert cleaner.config["qbittorrent"]["url"] == "http://env-host:9090"
+        assert cleaner.config["qbittorrent"]["username"] == "env_user"
+        assert cleaner.config["qbittorrent"]["password"] == "env_pass"

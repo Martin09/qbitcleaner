@@ -3,6 +3,8 @@
 # qBittorrent connection settings
 qbittorrent:
   # Full URL including protocol, hostname, port, and optional path
+  # These can be overridden by environment variables:
+  #   QBIT_URL, QBIT_USERNAME, QBIT_PASSWORD
   url: "https://your-qbittorrent-host:8080"
   username: "your-username"
   password: "your-password"

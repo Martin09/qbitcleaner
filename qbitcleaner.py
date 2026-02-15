@@ -9,6 +9,7 @@ This script connects to a qBittorrent instance and removes torrents based on:
 
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -37,7 +38,7 @@ class QBittorrentCleaner:
 
     def _load_config(self, config_path: str) -> dict:
         """
-        Load configuration from YAML file.
+        Load configuration from YAML file and apply environment variable overrides.
 
         Args:
             config_path: Path to the configuration file.
@@ -55,6 +56,21 @@ class QBittorrentCleaner:
 
         with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
+
+        if config is None:
+            config = {}
+
+        # Environment variable overrides for Docker/CI
+        qb = config.setdefault("qbittorrent", {})
+        env_overrides = {
+            "QBIT_URL": "url",
+            "QBIT_USERNAME": "username",
+            "QBIT_PASSWORD": "password",
+        }
+        for env_var, config_key in env_overrides.items():
+            value = os.environ.get(env_var)
+            if value is not None:
+                qb[config_key] = value
 
         return config
 
