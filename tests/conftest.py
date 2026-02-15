@@ -7,6 +7,14 @@ import pytest
 import yaml
 
 
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch):
+    """Remove qBittorrent env vars so .env files (auto-loaded by VS Code) don't leak into tests."""
+    monkeypatch.delenv("QBIT_URL", raising=False)
+    monkeypatch.delenv("QBIT_USERNAME", raising=False)
+    monkeypatch.delenv("QBIT_PASSWORD", raising=False)
+
+
 @pytest.fixture
 def sample_config():
     """Create a sample configuration dictionary."""

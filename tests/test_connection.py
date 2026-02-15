@@ -72,7 +72,7 @@ class TestConnection:
     @patch("qbitcleaner.Client")
     def test_connection_with_path_in_url(self, mock_client_class, tmp_path, sample_config):
         """Test connection when URL includes a path."""
-        sample_config["qbittorrent"]["url"] = "https://ds218.local:8080/qbittorrent"
+        sample_config["qbittorrent"]["url"] = "https://qbittorrent.local:8080"
         config_path = tmp_path / "path_url_config.yaml"
         import yaml
 
@@ -90,7 +90,7 @@ class TestConnection:
         # Verify URL is used directly
         call_args = mock_client_class.call_args
         url = call_args[1]["host"]
-        assert url == "https://ds218.local:8080/qbittorrent"
+        assert url == "https://qbittorrent.local:8080"
 
     @patch("qbitcleaner.Client")
     def test_connection_auto_detects_ssl_from_url(self, mock_client_class, tmp_path, sample_config):
