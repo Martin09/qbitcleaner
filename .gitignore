@@ -29,8 +29,9 @@ ENV/
 env/
 .uv/
 
-# pytest
+# pytest and tools
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 .tox/
@@ -61,3 +62,8 @@ Thumbs.db
 # Project specific
 *.tmp
 *.bak
+
+# Secrets and local overrides
+.env
+*.env
+docker-compose.override.yml
