@@ -9,7 +9,7 @@ class TestGetCompletedTorrents:
     """Test getting completed torrents."""
 
     @patch("qbitcleaner.Client")
-    def test_get_completed_torrents(self, mock_client_class, config_file, mock_torrent):
+    def test_get_completed_torrents(self, mock_client_class, mock_torrent):
         """Test getting list of completed seeding torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -21,7 +21,7 @@ class TestGetCompletedTorrents:
         mock_client.torrents_info.return_value = [seeding_torrent1, seeding_torrent2]
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         cleaner.client = mock_client
 
         torrents = cleaner._get_completed_torrents()
@@ -31,14 +31,14 @@ class TestGetCompletedTorrents:
         assert torrents[1].name == "Seeding Torrent 2"
 
     @patch("qbitcleaner.Client")
-    def test_get_completed_torrents_empty(self, mock_client_class, config_file):
+    def test_get_completed_torrents_empty(self, mock_client_class):
         """Test getting torrents when none are seeding."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client.torrents_info.return_value = []
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         cleaner.client = mock_client
 
         torrents = cleaner._get_completed_torrents()
@@ -46,14 +46,14 @@ class TestGetCompletedTorrents:
         assert len(torrents) == 0
 
     @patch("qbitcleaner.Client")
-    def test_get_completed_torrents_error(self, mock_client_class, config_file):
+    def test_get_completed_torrents_error(self, mock_client_class):
         """Test handling error when fetching torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
         mock_client.torrents_info.side_effect = Exception("API Error")
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         cleaner.client = mock_client
 
         torrents = cleaner._get_completed_torrents()
@@ -65,7 +65,7 @@ class TestCleanup:
     """Test cleanup functionality."""
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_dry_run(self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago):
+    def test_cleanup_dry_run(self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago):
         """Test cleanup in dry-run mode."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -84,7 +84,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=True)
 
         # Should remove 5 (20 total - 15 minimum = 5 can be removed)
@@ -96,7 +96,7 @@ class TestCleanup:
         mock_client.torrents_delete.assert_not_called()
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_actual_removal(self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago):
+    def test_cleanup_actual_removal(self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago):
         """Test cleanup with actual removal."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -115,7 +115,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # Should remove 5
@@ -124,7 +124,7 @@ class TestCleanup:
         assert mock_client.torrents_delete.call_count == 5
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_maintains_minimum(self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago):
+    def test_cleanup_maintains_minimum(self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago):
         """Test that cleanup maintains minimum seeding torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -145,7 +145,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # Should not remove any (need to maintain minimum of 15)
@@ -156,7 +156,7 @@ class TestCleanup:
 
     @patch("qbitcleaner.Client")
     def test_cleanup_removes_max_time_first(
-        self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago, timestamp_110_days_ago
+        self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago, timestamp_110_days_ago
     ):
         """Test that torrents exceeding max time are removed first."""
         mock_client = MagicMock()
@@ -190,7 +190,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # Should remove 5 (20 - 15 minimum)
@@ -201,18 +201,18 @@ class TestCleanup:
         assert all(hash.startswith("old") for hash in delete_calls)
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_connection_failure(self, mock_client_class, config_file):
+    def test_cleanup_connection_failure(self, mock_client_class, env_config):
         """Test cleanup when connection fails."""
         mock_client_class.side_effect = Exception("Connection failed")
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup()
 
         assert "error" in stats
         assert stats["error"] == "Failed to connect to qBittorrent"
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_removal_error(self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago):
+    def test_cleanup_removal_error(self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago):
         """Test cleanup handles removal errors gracefully."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -232,7 +232,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # Should track errors
@@ -240,7 +240,7 @@ class TestCleanup:
         assert stats["removed"] == 0  # None actually removed
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_empty_torrent_list(self, mock_client_class, config_file):
+    def test_cleanup_empty_torrent_list(self, mock_client_class, env_config):
         """Test cleanup with no torrents."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -248,7 +248,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = []
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup()
 
         assert stats["total_checked"] == 0
@@ -256,7 +256,7 @@ class TestCleanup:
         assert stats["kept"] == 0
 
     @patch("qbitcleaner.Client")
-    def test_cleanup_all_below_minimum_time(self, mock_client_class, config_file, mock_torrent, timestamp_10_days_ago):
+    def test_cleanup_all_below_minimum_time(self, mock_client_class, env_config, mock_torrent, timestamp_10_days_ago):
         """Test cleanup when all torrents are below minimum seeding time."""
         mock_client = MagicMock()
         mock_client.auth_log_in = MagicMock()
@@ -274,7 +274,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup()
 
         # Should not remove any (all below minimum time)
@@ -284,7 +284,7 @@ class TestCleanup:
 
     @patch("qbitcleaner.Client")
     def test_cleanup_removes_all_public_torrents(
-        self, mock_client_class, config_file, mock_torrent, timestamp_10_days_ago
+        self, mock_client_class, env_config, mock_torrent, timestamp_10_days_ago
     ):
         """Test that all public (non-private) torrents are always removed regardless of age."""
         mock_client = MagicMock()
@@ -309,7 +309,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # All public torrents should be removed regardless of age or minimum count
@@ -319,7 +319,7 @@ class TestCleanup:
 
     @patch("qbitcleaner.Client")
     def test_cleanup_mixed_public_private_torrents(
-        self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago, timestamp_10_days_ago
+        self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago, timestamp_10_days_ago
     ):
         """Test cleanup with mixed public and private torrents."""
         mock_client = MagicMock()
@@ -374,7 +374,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # 5 public torrents removed + 5 old private torrents removed (20 private - 15 minimum = 5)
@@ -388,7 +388,7 @@ class TestCleanup:
 
     @patch("qbitcleaner.Client")
     def test_cleanup_public_torrents_ignore_minimum_count(
-        self, mock_client_class, config_file, mock_torrent, timestamp_20_days_ago
+        self, mock_client_class, env_config, mock_torrent, timestamp_20_days_ago
     ):
         """Test that public torrents are removed even when below minimum seeding count."""
         mock_client = MagicMock()
@@ -413,7 +413,7 @@ class TestCleanup:
         mock_client.torrents_info.return_value = torrents
         mock_client_class.return_value = mock_client
 
-        cleaner = QBittorrentCleaner(config_file)
+        cleaner = QBittorrentCleaner()
         stats = cleaner.cleanup(dry_run=False)
 
         # All 10 public torrents should be removed (minimum count only applies to private)

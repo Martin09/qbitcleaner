@@ -4,27 +4,34 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
-import yaml
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    """Remove qBittorrent env vars so .env files (auto-loaded by VS Code) don't leak into tests."""
-    monkeypatch.delenv("QBIT_URL", raising=False)
-    monkeypatch.delenv("QBIT_USERNAME", raising=False)
-    monkeypatch.delenv("QBIT_PASSWORD", raising=False)
-    monkeypatch.delenv("SCHEDULE", raising=False)
+    """Remove all QBIT_ env vars so .env files (auto-loaded by VS Code) don't leak into tests."""
+    for var in (
+        "QBIT_URL",
+        "QBIT_USERNAME",
+        "QBIT_PASSWORD",
+        "QBIT_VERIFY_SSL",
+        "QBIT_MINIMUM_SEEDING_TORRENTS",
+        "QBIT_MINIMUM_SEEDING_TIME_DAYS",
+        "QBIT_LOG_LEVEL",
+        "QBIT_LOG_FILE",
+        "QBIT_SCHEDULE",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 @pytest.fixture
 def sample_config():
-    """Create a sample configuration dictionary."""
+    """Return the expected config dict when default env vars are used."""
     return {
         "qbittorrent": {
             "url": "http://localhost:8080",
-            "username": "testuser",
-            "password": "testpass",
-            "verify_ssl": True,
+            "username": "",
+            "password": "",
+            "verify_ssl": False,
         },
         "cleanup": {
             "minimum_seeding_torrents": 15,
@@ -38,12 +45,25 @@ def sample_config():
 
 
 @pytest.fixture
-def config_file(tmp_path, sample_config):
-    """Create a temporary config file."""
-    config_path = tmp_path / "test_config.yaml"
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(sample_config, f)
-    return str(config_path)
+def env_config(monkeypatch):
+    """Set standard test env vars and return a helper to set more.
+
+    Explicitly pins all cleanup thresholds so tests don't silently depend on
+    the code-level defaults and break whenever those defaults are changed.
+    """
+
+    def _set(**kwargs):
+        for key, value in kwargs.items():
+            monkeypatch.setenv(key, str(value))
+
+    _set(
+        QBIT_URL="http://localhost:8080",
+        QBIT_USERNAME="testuser",
+        QBIT_PASSWORD="testpass",
+        QBIT_MINIMUM_SEEDING_TORRENTS="15",
+        QBIT_MINIMUM_SEEDING_TIME_DAYS="14",
+    )
+    return _set
 
 
 @pytest.fixture

@@ -24,8 +24,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
-COPY qbitcleaner.py config.example.yaml ./
-RUN cp config.example.yaml config.yaml
+COPY qbitcleaner.py ./
 
 # Use the venv Python directly — no uv needed at runtime
 ENTRYPOINT ["/app/.venv/bin/python", "qbitcleaner.py"]

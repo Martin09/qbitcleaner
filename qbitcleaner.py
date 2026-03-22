@@ -13,10 +13,8 @@ import os
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
 import urllib3
-import yaml
 from cron_converter import Cron
 from qbittorrentapi import APIConnectionError, Client, LoginFailed
 
@@ -27,54 +25,47 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class QBittorrentCleaner:
     """Main class for cleaning up qBittorrent seeding list."""
 
-    def __init__(self, config_path: str = "config.yaml"):
-        """
-        Initialize the cleaner with configuration.
-
-        Args:
-            config_path: Path to the configuration YAML file.
-        """
-        self.config = self._load_config(config_path)
+    def __init__(self):
+        """Initialize the cleaner with configuration from environment variables."""
+        self.config = self._load_config()
         self._setup_logging()
         self.client = None
 
-    def _load_config(self, config_path: str) -> dict:
+    @staticmethod
+    def _load_config() -> dict:
         """
-        Load configuration from YAML file and apply environment variable overrides.
+        Load configuration from environment variables.
 
-        Args:
-            config_path: Path to the configuration file.
+        All variables are prefixed with QBIT_. Missing variables use sensible defaults.
 
         Returns:
             Dictionary containing configuration settings.
-
-        Raises:
-            FileNotFoundError: If config file doesn't exist.
-            yaml.YAMLError: If config file is invalid YAML.
         """
-        config_file = Path(config_path)
-        if not config_file.exists():
-            raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        url = os.environ.get("QBIT_URL", "http://localhost:8080")
 
-        with open(config_file, encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+        # Auto-detect verify_ssl from URL scheme if not explicitly set
+        verify_ssl_env = os.environ.get("QBIT_VERIFY_SSL")
+        if verify_ssl_env is not None:
+            verify_ssl = verify_ssl_env.lower() in ("true", "1", "yes")
+        else:
+            verify_ssl = url.lower().startswith("https")
 
-        if config is None:
-            config = {}
-
-        # Environment variable overrides for Docker/CI
-        qb = config.setdefault("qbittorrent", {})
-        env_overrides = {
-            "QBIT_URL": "url",
-            "QBIT_USERNAME": "username",
-            "QBIT_PASSWORD": "password",
+        return {
+            "qbittorrent": {
+                "url": url,
+                "username": os.environ.get("QBIT_USERNAME", ""),
+                "password": os.environ.get("QBIT_PASSWORD", ""),
+                "verify_ssl": verify_ssl,
+            },
+            "cleanup": {
+                "minimum_seeding_torrents": int(os.environ.get("QBIT_MINIMUM_SEEDING_TORRENTS", "15")),
+                "minimum_seeding_time_days": int(os.environ.get("QBIT_MINIMUM_SEEDING_TIME_DAYS", "14")),
+            },
+            "logging": {
+                "level": os.environ.get("QBIT_LOG_LEVEL", "INFO"),
+                "file": os.environ.get("QBIT_LOG_FILE"),
+            },
         }
-        for env_var, config_key in env_overrides.items():
-            value = os.environ.get(env_var)
-            if value is not None:
-                qb[config_key] = value
-
-        return config
 
     def _setup_logging(self):
         """Set up logging based on configuration."""
@@ -398,39 +389,40 @@ def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(description="Clean up qBittorrent seeding list based on configurable criteria")
     parser.add_argument(
-        "-c", "--config", default="config.yaml", help="Path to configuration file (default: config.yaml)"
-    )
-    parser.add_argument(
         "-d", "--dry-run", action="store_true", help="Perform a dry run without actually removing torrents"
     )
     parser.add_argument(
         "--schedule",
-        default=os.environ.get("SCHEDULE", ""),
+        default=os.environ.get("QBIT_SCHEDULE", ""),
         help="Cron expression for scheduling, e.g. '0 */6 * * *' (default: run once)",
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
     cron_expr = args.schedule.strip()
+
+    # Initialise the cleaner first so _setup_logging() configures the root
+    # logger from QBIT_LOG_LEVEL / QBIT_LOG_FILE before we emit anything.
+    try:
+        cleaner = QBittorrentCleaner()
+    except Exception as e:
+        # Fall back to a minimal handler so the error is actually visible.
+        logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.error(f"Failed to initialise cleaner: {e}", exc_info=True)
+        sys.exit(1)
+
     if cron_expr:
         cron = Cron(cron_expr)
-        logging.info(f"Scheduled mode: '{cron_expr}'")
+        cleaner.logger.info(f"Scheduled mode: '{cron_expr}'")
         schedule = cron.schedule(datetime.now())
 
     while True:
         try:
-            cleaner = QBittorrentCleaner(args.config)
             stats = cleaner.cleanup(dry_run=args.dry_run)
             cleaner.disconnect()
             if not cron_expr and "error" in stats:
                 sys.exit(1)
-        except FileNotFoundError as e:
-            logging.error(f"Configuration error: {e}")
-            if not cron_expr:
-                sys.exit(1)
         except Exception as e:
-            logging.error(f"Unexpected error: {e}", exc_info=True)
+            cleaner.logger.error(f"Unexpected error: {e}", exc_info=True)
             if not cron_expr:
                 sys.exit(1)
 

@@ -52,9 +52,6 @@ coverage.xml
 *.log
 qbitcleaner.log
 
-# Config files with sensitive data
-config.yaml
-
 # OS
 Thumbs.db
 .DS_Store

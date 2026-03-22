@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  qbitcleaner:
+    build: .
+    image: qbitcleaner:latest
+    container_name: qbitcleaner
+    restart: unless-stopped
+    environment:
+      # --- qBittorrent connection ---
+      - QBIT_URL=http://localhost:8080
+      - QBIT_USERNAME=admin
+      - QBIT_PASSWORD=adminadmin
+      # - QBIT_VERIFY_SSL=false
+
+      # --- Cleanup criteria ---
+      - QBIT_MINIMUM_SEEDING_TORRENTS=15
+      - QBIT_MINIMUM_SEEDING_TIME_DAYS=14
+
+      # --- Scheduling ---
+      # Cron schedule (examples: '0 * * * *' = hourly, '0 0 * * *' = daily)
+      - QBIT_SCHEDULE=0 0 * * *
+
+      # --- Logging ---
+      - QBIT_LOG_LEVEL=INFO
+      # - QBIT_LOG_FILE=qbitcleaner.log
+
+    # Alternative: load all env vars from a file
+    # env_file: .env

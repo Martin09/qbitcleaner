@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "qbittorrent-api>=2024.3.0",
-    "PyYAML>=6.0",
     "cron-converter>=1.2.0",
 ]
 
